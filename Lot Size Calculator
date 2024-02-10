@@ -1,0 +1,96 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © melodicfish
+
+//@version=5
+indicator("Lot Size Calculator", shorttitle = "Lot Calculator", overlay=true)
+
+// Inputs
+gr3="----------------------Trade Settings---------------------"
+cur=input.string("USD",title="Account Base Currency",options=["USD","EUR","GBP","CAD","AUD"],inline="Acc",group=gr3)
+qty=input.int(100000,title="Units per Lot",options=[1,10,100,1000,10000,100000],tooltip = "Example Forex set to 100,000",inline="Acc",group=gr3)
+bal=input.float(50000.00,title="Account Balance",group=gr3)
+riskcent=input.float(1.0,title="Account Risk % ",inline="Risk",group=gr3)
+target=input.float(1.0,title="Reward Ratio",tooltip = "Risk to Reward ratio. Ex: 1.5:1R",inline="Risk",group=gr3)
+
+gr4="----------------------Trade Box Location Settings---------------------"
+p1=input.price(100.0,title="Entry Price Level",tooltip = "Select Entry Price Level on Chart",confirm = true, inline = "p1",group = gr4)
+st=input.time(timestamp("1 Jan 2023"), "Trade Box Edge 1", confirm=true,inline = "p1",group = gr4)
+p2=input.price(50.0,title="Stop Loss Price Level",tooltip = "Select Stop Loss Price Level on Chart ",confirm = true,inline = "p2")
+et=input.time(timestamp("2 Jan 2023"), "Trade Box Edge 2", confirm=true,inline = "p2")
+
+gr1="----------------------Trade Box Settings---------------------"
+rBoxCol=input.color(color.rgb(255, 82, 82, 80),title="Risk Box Color",inline="box",group=gr1)
+tBoxCol=input.color(color.rgb(33, 149, 243, 80),title="Target Box Color",inline="box",group=gr1)
+ext=input.string(extend.none,title="Extend Trade Box",options=[extend.right,extend.left,extend.both,extend.none],inline="box")
+
+gr2="--------------------------Data Table Settings--------------------------"
+dashTitleCol=input.color(color.rgb(52, 106, 150),title="Table Title Cell Color",inline="table",group=gr2)
+dashDataCol=input.color(color.rgb(145, 165, 181),title="Data Cell",inline="table",group=gr2)
+dashTextCol=input.color(color.rgb(0, 0, 0),title="Text",inline="table",group=gr2)
+dashBDCol=input.color(color.rgb(16, 26, 62),title="Border",inline="table",group=gr2)
+dashBDwth=input.int(1,title="Table Border Width",inline = "Table2")
+tableLoc=input.string(position.top_right,title="Table Position",options=[position.top_right,position.middle_right,position.bottom_right,position.top_left,position.middle_left,position.bottom_left],inline="Table2")
+
+// Logic  
+riskval= math.abs(p1-p2)
+riskcent:=math.abs(riskcent)/100
+vt= request.security(syminfo.currency==cur?syminfo.tickerid:str.tostring(cur)+syminfo.currency, timeframe.period, close)
+notsame=syminfo.currency==cur?false:true
+var int decimals = str.length(str.tostring(syminfo.mintick))-2
+var RiskBox= box.new(st,p1,et,p2,xloc = xloc.bar_time)
+var TargetBox= box.new(st,p2,et,p1,xloc = xloc.bar_time)
+var targetVal=0.0
+risk=bal*riskcent
+DperP=risk/ ((p1-p2)*qty)
+if notsame==true
+    DperP:=DperP*vt
+var lots= 0.0
+
+//Box  
+if barstate.islast
+    lots:=math.round(math.abs(DperP),3)
+
+    box.set_left(RiskBox,st)
+    box.set_right(RiskBox,et)
+    box.set_top(RiskBox,p1)
+    box.set_bottom(RiskBox,p2)
+    box.set_bgcolor(RiskBox,rBoxCol)
+    box.set_border_color(RiskBox,rBoxCol)
+    box.set_left(TargetBox,st)
+    box.set_right(TargetBox,et)
+    box.set_bgcolor(TargetBox,tBoxCol)
+    box.set_border_color(TargetBox,tBoxCol) 
+    if p1>p2
+        targetVal:= p1+ (riskval*math.abs(target))
+        box.set_top(TargetBox,targetVal)
+        box.set_bottom(TargetBox,p1)
+    else
+        targetVal:=p1-(riskval*math.abs(target))
+        box.set_top(TargetBox,p1)
+        box.set_bottom(TargetBox, targetVal)
+    box.set_extend(RiskBox,ext)
+    box.set_extend(TargetBox,ext)
+
+
+//Table 
+var dash=table.new(position = position.top_right, columns = 2, rows= 7,frame_width = 5 )
+
+if barstate.islast
+    table.cell( dash, column = 1, row = 0, text = "Account Balance",text_color = dashTextCol, bgcolor=dashTitleCol, text_halign = text.align_left )
+    table.cell(dash, column = 1, row = 1, text = "Account Risk %",text_color = dashTextCol, bgcolor=dashTitleCol, text_halign = text.align_left)
+    table.cell(dash, column = 1, row = 2, text = "Cash at Risk" ,text_color = dashTextCol, bgcolor=dashTitleCol, text_halign = text.align_left)
+    table.cell( dash, column = 1, row = 3, text = "Entry Price",text_color = dashTextCol, bgcolor=dashTitleCol, text_halign = text.align_left)
+    table.cell(dash, column = 1, row = 4, text = "Stop Loss Price " ,text_color = dashTextCol, bgcolor=dashTitleCol, text_halign = text.align_left)
+    table.cell(dash, column = 1, row = 5, text = "Target Price" ,text_color = dashTextCol, bgcolor=dashTitleCol, text_halign = text.align_left)
+    table.cell(dash, column = 1, row = 6, text = "Lots" ,text_color = dashTextCol, bgcolor=dashTitleCol, text_halign = text.align_left)
+    
+    table.cell( dash, column = 0, row = 0, text ="$ "+ str.tostring(bal) +" " +cur,text_color = dashTextCol, bgcolor=dashDataCol, text_halign = text.align_right )
+    table.cell(dash, column = 0, row = 1, text = "% "+ str.tostring(riskcent*100),text_color = dashTextCol, bgcolor=dashDataCol, text_halign = text.align_right)
+    table.cell(dash, column = 0, row = 2, text = "$ "+ str.tostring(risk),text_color = dashTextCol, bgcolor=dashDataCol, text_halign = text.align_right)
+    table.cell( dash, column = 0, row = 3, text = str.tostring(math.round(p1,4)),text_color = dashTextCol, bgcolor=dashDataCol, text_halign = text.align_right)
+    table.cell(dash, column = 0, row = 4, text = str.tostring(math.round(p2,4)), text_color = dashTextCol, bgcolor=dashTitleCol, text_halign = text.align_right)
+    table.cell(dash, column = 0, row = 5, text = str.tostring(math.round(targetVal,4)),text_color = dashTextCol, bgcolor=dashDataCol, text_halign = text.align_right)   
+    table.cell(dash, column = 0, row = 6, text =str.tostring(lots), text_color = dashTextCol, bgcolor=dashDataCol, text_halign = text.align_right)
+    table.set_border_color(dash,dashBDCol)
+    table.set_border_width(dash,dashBDwth)
+    table.set_position(dash,tableLoc)
